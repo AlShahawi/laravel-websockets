@@ -13,6 +13,7 @@ use BeyondCode\LaravelWebSockets\Statistics\DnsResolver;
 use BeyondCode\LaravelWebSockets\Facades\StatisticsLogger;
 use BeyondCode\LaravelWebSockets\Facades\WebSocketsRouter;
 use BeyondCode\LaravelWebSockets\Server\Logger\HttpLogger;
+use Illuminate\Contracts\Cache\Repository as CacheRepository;
 use BeyondCode\LaravelWebSockets\Server\WebSocketServerFactory;
 use BeyondCode\LaravelWebSockets\Server\Logger\ConnectionLogger;
 use BeyondCode\LaravelWebSockets\Server\Logger\WebsocketsLogger;
@@ -28,23 +29,38 @@ class StartWebSocketServer extends Command
 
     /** @var \React\EventLoop\LoopInterface */
     protected $loop;
+    /**
+     * @var CacheRepository
+     */
+    private $cache;
 
-    public function __construct()
+    public function __construct(CacheRepository $cache)
     {
         parent::__construct();
 
         $this->loop = LoopFactory::create();
+        $this->cache = $cache;
     }
 
     public function handle()
     {
         $this
+            ->cacheCurrentProcessId()
             ->configureStatisticsLogger()
             ->configureHttpLogger()
             ->configureMessageLogger()
             ->configureConnectionLogger()
             ->registerEchoRoutes()
             ->startWebSocketServer();
+    }
+
+    protected function cacheCurrentProcessId()
+    {
+        // Cache the current process id, so we can stop it
+        // later using websockets:restart command.
+        $this->cache->forever('websockets:process_id', getmypid());
+
+        return $this;
     }
 
     protected function configureStatisticsLogger()
